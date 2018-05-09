@@ -1,0 +1,72 @@
+#!/bin/python
+
+# Migrates a git repository
+# Usage: gitmig <from> <to>
+
+import sys, os, re
+from subprocess import call, check_output
+from urllib.parse import urlparse
+
+os.chdir("/tmp")
+
+# Check number of arguments
+if len(sys.argv) != 3:
+    print("Usage:")
+    print("gitmig <from> <to>")
+    sys.exit(1)
+
+# Repository information
+class Repo:
+    def __init__(self, url):
+        self.url = url
+        self.name = self.extract_name(url)
+
+    # Returns the repository name
+    # given the repository url
+    def extract_name(self, raw_url):
+        parts = raw_url.rsplit("/")
+
+        if len(parts) >= 1:
+            return parts[-1]
+        else:
+            return raw_url
+
+def branch_name(branch):
+    return branch.rsplit("/")[-1]
+
+# Name arguments
+repo_from = Repo(sys.argv[1])
+repo_to = Repo(sys.argv[2])
+
+# Download original repository
+call(["git", "clone", repo_from.url])
+
+# Enter its directory
+os.chdir("/tmp/%s"%repo_from.name)
+
+# Get all branches
+call("git fetch origin", shell=True)
+
+# Download all the branches
+branches = filter(lambda b: not b == "*" and
+                            not b == "" and
+                            not b == "->" and
+                            not b == "remotes/origin/HEAD" and
+                            not b == "origin/master",
+           re.split(" |\n", check_output("git branch -a", shell=True).decode("utf-8")))
+
+for branch in branches:
+    branch = branch_name(branch)
+    print("Checking out branch %s"%branch)
+    call(["git", "checkout", "-b", branch, "origin/%s"%branch])
+
+# Add the new origin
+call(["git", "remote", "add", "new-origin", repo_to.url])
+
+# Push branches and tags to the new origin
+call(["git", "push", "--all", "new-origin"])
+call(["git", "push", "--tags", "new-origin"])
+
+# Delete the repository from /tmp
+os.chdir("/tmp")
+call(["rm", "-rf", repo_from.name])
