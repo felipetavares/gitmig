@@ -27,7 +27,7 @@ class Repo:
         parts = raw_url.rsplit("/")
 
         if len(parts) >= 1:
-            return parts[-1]
+            return parts[-1].rsplit(".")[0]
         else:
             return raw_url
 
